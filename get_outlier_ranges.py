@@ -13,6 +13,9 @@ import sys
 # * Automatic outlier mask generation
 # * Fix the ugly filenames for image generation
 # * Run some profiling. Get rid of unneccessary copy
+# * Remove the need of creating the set of outliers.
+#     Is there some kind of "isin" with granularity setting?
+# * Reduce the amount of dataframes. All are probably not needed.
 
 def merge_intervals(intervals):
     """ Merge list of intervals where intervals overlap.
@@ -50,10 +53,11 @@ def _get_outlier_mask(player):
 
     steps = []
     if player == "forsaken":
+        # https://www.hltv.org/download/demo/44519
         steps = [0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]
 
     if player == "JW":
-        # From hltv 35960: (Lol, bot JW)
+        # https://www.hltv.org/download/demo/35960 (BOT JW)
         steps = [0, 1, 1, 1, 1, 1, 0, 0]
 
 
@@ -65,7 +69,10 @@ def _get_outlier_mask(player):
 
 
 def _get_outliers(vals, outlier_mask):
-    # Filter values +/- 0.002
+    """ Sort the given values into inliers and outliers based on the outlier mask.
+    NOTE: This function should not be needed if have a more clever way of selecting
+          data from the pandas dataframe.
+    """
     epsilon = 0.002
 
     inliers = []
@@ -83,7 +90,7 @@ def _get_outliers(vals, outlier_mask):
     return inliers, outliers
 
 def _get_intervals(outliers):
-    """ Get and print the intevals where outliers resides.
+    """ Get and print the intervals where outliers resides.
     """
     intervals = []
     if outliers:
@@ -117,47 +124,45 @@ def main():
 
     for player in df.name.unique():
         print(f"\n=== {player}")
-        df_forsaken = df[df.name == player].copy()
+        df_copy = df[df.name == player].copy()
 
-        if len(df_forsaken.index) < 1000:
+        if len(df_copy.index) < 1000:
             print("Not enough data")
             continue
 
-        df_forsaken['yawdiff'] = df_forsaken['yaw'].diff(1)
-        df_forsaken['absyawdiff'] = df_forsaken['yawdiff'].abs()
+        df_copy['yawdiff'] = df_copy['yaw'].diff(1)
+        df_copy['absyawdiff'] = df_copy['yawdiff'].abs()
 
 
-        df_forsaken['pitchdiff'] = df_forsaken['pitch'].diff(1)
-        df_forsaken['abspitchdiff'] = df_forsaken['pitchdiff'].abs()
+        df_copy['pitchdiff'] = df_copy['pitch'].diff(1)
+        df_copy['abspitchdiff'] = df_copy['pitchdiff'].abs()
 
 
-        df_forsaken['xdiff'] = df_forsaken['x'].diff(1)
-        df_forsaken['ydiff'] = df_forsaken['y'].diff(1)
+        df_copy['xdiff'] = df_copy['x'].diff(1)
+        df_copy['ydiff'] = df_copy['y'].diff(1)
 
         outlier_mask = _get_outlier_mask(player)
-        # Vals is not rounded
 
-        yaw_vals = _get_yaws(df_forsaken)
+        yaw_vals = _get_yaws(df_copy)
         yaw_inliers, yaw_outliers = _get_outliers(yaw_vals, outlier_mask)
 
-        vals = _get_pitches(df_forsaken)
+        vals = _get_pitches(df_copy)
         inliers, outliers = _get_outliers(vals, outlier_mask)
 
-        filtered_outliers = None
+        filtered_outliers_pitch = None
         if outliers:
-            # filtered_outliers = df_forsaken[(df_forsaken['abspitchdiff'].isin(set(outliers))) & \
-            filtered_outliers = df_forsaken[(df_forsaken['abspitchdiff'].isin(outliers))].tick.values
+            filtered_outliers_pitch = df_copy[(df_copy['abspitchdiff'].isin(outliers))].tick.values
 
-        filtered_yaw_outliers = None
+        filtered_outliers_yaw = None
         if yaw_outliers:
-            filtered_yaw_outliers = df_forsaken[(df_forsaken['absyawdiff'].isin(yaw_outliers))].tick.values
+            filtered_outliers_yaw = df_copy[(df_copy['absyawdiff'].isin(yaw_outliers))].tick.values
 
-
+        # Combine outlier ranges from pitch and yaw
         all_outlier_ticks = []
-        if filtered_outliers is not None:
-            all_outlier_ticks.extend(filtered_outliers)
-        if filtered_yaw_outliers is not None:
-            all_outlier_ticks.extend(filtered_yaw_outliers)
+        if filtered_outliers_pitch is not None:
+            all_outlier_ticks.extend(filtered_outliers_pitch)
+        if filtered_outliers_yaw is not None:
+            all_outlier_ticks.extend(filtered_outliers_yaw)
 
         intervals = _get_intervals(sorted(all_outlier_ticks))
 
@@ -166,11 +171,11 @@ def main():
         elif not intervals:
             print("Nothing detected")
 
-        filename_2 = f"reports/images/{Path(filename).name}_{player}_0_50_pitch.png"
-        _save_figure(filename_2, player, inliers, outliers, [0.0, 0.5], [0, 50])
+        bar_graph_filename_pitch = f"reports/images/{Path(filename).name}_{player}_0_50_pitch.png"
+        _save_figure(bar_graph_filename_pitch, player, inliers, outliers, [0.0, 0.5], [0, 50])
 
-        filename_3 = f"reports/images/{Path(filename).name}_{player}_0_50_yaw.png"
-        _save_figure(filename_3, player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 50])
+        bar_graph_filename_yaw = f"reports/images/{Path(filename).name}_{player}_0_50_yaw.png"
+        _save_figure(bar_graph_filename_yaw, player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 50])
 
 
 if __name__ == "__main__":
