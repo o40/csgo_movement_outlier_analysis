@@ -6,13 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sys
-import time
 
 # TODO:
 # * Replace "intervals" handling with ranges
 # * Replace _get_yaws and _get_pitches functions with something more generic
 # * Automatic outlier mask generation
-# * Fix the ugly filenames for image generation
 # * Run some profiling. Get rid of unneccessary copy
 # * Remove the need of creating the set of outliers.
 #     Is there some kind of "isin" with granularity setting?
@@ -112,11 +110,11 @@ def _save_figure(filename, player, inliers, outliers, x_range, y_range):
         ax.set_ylim(y_range)
 
     for i, x in enumerate(range(0, round(x_range[1] / stepsize))):
-        ax.text((i * stepsize), -2, f"{i}",
+        ax.text((i * stepsize), 10, f"{i}",
                 horizontalalignment='center',
                 fontsize=8)
 
-    plt.savefig(f"reports/images/{Path(filename).name}_{player}.png")
+    plt.savefig(filename)
     plt.close()
 
 
@@ -132,7 +130,6 @@ def _parse_args():
     return parser.parse_args()
 
 def main():
-    start_time = time.perf_counter()
     args = _parse_args()
     filename = args.csv
     print("Loading data...")
@@ -183,16 +180,15 @@ def main():
             print("Nothing detected")
 
         if args.generate_images:
-            _save_figure(f"reports/images/{Path(filename).name}_{player}_0_400_pitch.png",
+            base_image_path = Path("reports/images")
+            _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_pitch.png",
                 player, inliers, outliers, [0.0, 0.5], [0, 400])
-            # _save_figure(f"reports/images/{Path(filename).name}_{player}_pitch.png",
+            # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_pitch.png",
             #     player, inliers, outliers, [0.0, 0.5], None)
-            _save_figure(f"reports/images/{Path(filename).name}_{player}_0_400_yaw.png",
+            _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_yaw.png",
                 player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 400])
-            # _save_figure(f"reports/images/{Path(filename).name}_{player}_yaw.png",
+            # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_yaw.png",
             #    player, yaw_inliers, yaw_outliers, [0.0, 0.5], None)
-
-    print(f"Execution time: {(time.perf_counter() - start_time):0.4f} seconds")
 
 if __name__ == "__main__":
     main()
