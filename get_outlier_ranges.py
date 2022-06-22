@@ -12,6 +12,7 @@ import sys
 # * Run some more profiling.
 # * Remove the need of creating the set of outliers.
 #     Is there some kind of "isin" with granularity setting?
+# * Round when counting and plotting
 
 def merge_intervals(intervals):
     """ Merge list of intervals where intervals overlap.
@@ -79,10 +80,12 @@ def _get_intervals(outliers):
     """ Get and print the intervals where outliers resides.
     """
     intervals = []
+    min_ticks_for_interesting_range = 40
     if outliers:
-        for val1, val3 in zip(outliers[:-3], outliers[3:]):
-            if val3 - val1 < 40:
-                intervals.append([val1, val3])
+        # Check a range of three outliers
+        for start, stop in zip(outliers[:-3], outliers[3:]):
+            if stop - start < min_ticks_for_interesting_range:
+                intervals.append([start, stop])
 
         for interval in merge_intervals(intervals):
             s, e = interval
@@ -123,6 +126,19 @@ def _parse_args():
                         help='Generate bar plots for player movement')
     return parser.parse_args()
 
+def _is_in_rounded(data, values):
+    epsilon = 0.002
+    selection = []
+    for d in data:
+        selected = False
+        for v in values:
+            if (abs(d - v) < epsilon):
+                selected = True
+                break
+        selection.append(selected)
+    return selection
+
+
 def main():
     args = _parse_args()
     filename = args.csv
@@ -153,11 +169,11 @@ def main():
 
         filtered_outliers_pitch = None
         if pitch_outliers:
-            filtered_outliers_pitch = df_copy[(df_copy['abspitchdiff'].isin(pitch_outliers))].tick.values
+            filtered_outliers_pitch = df_copy[_is_in_rounded(df_copy['abspitchdiff'], outlier_mask)].tick.values
 
         filtered_outliers_yaw = None
         if yaw_outliers:
-            filtered_outliers_yaw = df_copy[(df_copy['absyawdiff'].isin(yaw_outliers))].tick.values
+            filtered_outliers_yaw = df_copy[_is_in_rounded(df_copy['absyawdiff'], outlier_mask)].tick.values
 
         # Combine outlier ranges from pitch and yaw
         all_outlier_ticks = []
