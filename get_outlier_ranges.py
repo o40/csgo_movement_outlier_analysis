@@ -1,23 +1,21 @@
 from collections import Counter
 from pathlib import Path
+from player_outlier_masks import player_outlier_mask_dict
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sys
 import time
-from player_outlier_masks import player_outlier_mask_dict
 
 # TODO:
-# * Use proper argument handler
 # * Replace "intervals" handling with ranges
-# * Configuration file for outlier masks
 # * Replace _get_yaws and _get_pitches functions with something more generic
 # * Automatic outlier mask generation
 # * Fix the ugly filenames for image generation
 # * Run some profiling. Get rid of unneccessary copy
 # * Remove the need of creating the set of outliers.
 #     Is there some kind of "isin" with granularity setting?
-# * Reduce the amount of dataframes. All are probably not needed.
 
 def merge_intervals(intervals):
     """ Merge list of intervals where intervals overlap.
@@ -121,10 +119,22 @@ def _save_figure(filename, player, inliers, outliers, x_range, y_range):
     plt.savefig(f"reports/images/{Path(filename).name}_{player}.png")
     plt.close()
 
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description='Find interesting sequences based on movement outliers')
+    parser.add_argument('--csv',
+                        type=Path,
+                        help='Input CSV data',
+                        required=True)
+    parser.add_argument('--generate-images',
+                        action='store_true',
+                        help='Generate bar plots for player movement')
+    return parser.parse_args()
+
 def main():
     start_time = time.perf_counter()
-
-    filename = sys.argv[1]
+    args = _parse_args()
+    filename = args.csv
     print("Loading data...")
     df = pd.read_csv(filename)
     print("Loading data... DONE")
@@ -172,17 +182,15 @@ def main():
         elif not intervals:
             print("Nothing detected")
 
-        bar_graph_filename_pitch = f"reports/images/{Path(filename).name}_{player}_0_50_pitch.png"
-        _save_figure(bar_graph_filename_pitch,
-            player, inliers, outliers, [0.0, 0.5], [0, 50])
-        _save_figure(f"reports/images/{Path(filename).name}_{player}_pitch.png",
-            player, inliers, outliers, [0.0, 0.5], None)
-
-        bar_graph_filename_yaw = f"reports/images/{Path(filename).name}_{player}_0_50_yaw.png"
-        _save_figure(bar_graph_filename_yaw,
-            player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 50])
-        _save_figure(f"reports/images/{Path(filename).name}_{player}_yaw.png",
-            player, yaw_inliers, yaw_outliers, [0.0, 0.5], None)
+        if args.generate_images:
+            _save_figure(f"reports/images/{Path(filename).name}_{player}_0_400_pitch.png",
+                player, inliers, outliers, [0.0, 0.5], [0, 400])
+            # _save_figure(f"reports/images/{Path(filename).name}_{player}_pitch.png",
+            #     player, inliers, outliers, [0.0, 0.5], None)
+            _save_figure(f"reports/images/{Path(filename).name}_{player}_0_400_yaw.png",
+                player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 400])
+            # _save_figure(f"reports/images/{Path(filename).name}_{player}_yaw.png",
+            #    player, yaw_inliers, yaw_outliers, [0.0, 0.5], None)
 
     print(f"Execution time: {(time.perf_counter() - start_time):0.4f} seconds")
 
