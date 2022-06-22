@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sys
+import time
+from player_outlier_masks import player_outlier_mask_dict
 
 # TODO:
 # * Use proper argument handler
@@ -52,14 +54,8 @@ def _get_outlier_mask(player):
     stepsize = 0.00549313513513513513513
 
     steps = []
-    if player == "forsaken":
-        # https://www.hltv.org/download/demo/44519
-        steps = [0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]
-
-    if player == "JW":
-        # https://www.hltv.org/download/demo/35960 (BOT JW)
-        steps = [0, 1, 1, 1, 1, 1, 0, 0]
-
+    if player in player_outlier_mask_dict:
+        steps = player_outlier_mask_dict[player]
 
     outlier_mask = []
     for index, isset in enumerate(steps):
@@ -106,21 +102,32 @@ def _get_intervals(outliers):
 def _save_figure(filename, player, inliers, outliers, x_range, y_range):
     """ Save the inliers and outliers in diagram
     """
+    stepsize = 0.00549313513513513513513
     inlier_count = Counter(inliers)
     outlier_count = Counter(outliers)
     fsize = (20, 10)
     fig, ax = plt.subplots(1, 1, figsize=fsize, sharey=False)
-    ax.bar(inlier_count.keys(), inlier_count.values(), width=0.002, color='green')
-    ax.bar(outlier_count.keys(), outlier_count.values(), width=0.002, color='red')
+    ax.bar(inlier_count.keys(), inlier_count.values(), width=stepsize * 3 / 4, color='green')
+    ax.bar(outlier_count.keys(), outlier_count.values(), width=stepsize * 3 / 4, color='red')
     ax.set_xlim(x_range)
     if y_range:
         ax.set_ylim(y_range)
+
+    for i, x in enumerate(range(0, round(x_range[1] / stepsize))):
+        ax.text((i * stepsize), -2, f"{i}",
+                horizontalalignment='center',
+                fontsize=8)
+
     plt.savefig(f"reports/images/{Path(filename).name}_{player}.png")
     plt.close()
 
 def main():
+    start_time = time.perf_counter()
+
     filename = sys.argv[1]
+    print("Loading data...")
     df = pd.read_csv(filename)
+    print("Loading data... DONE")
 
     for player in df.name.unique():
         print(f"\n=== {player}")
@@ -130,14 +137,8 @@ def main():
             print("Not enough data")
             continue
 
-        df_copy['yawdiff'] = df_copy['yaw'].diff(1)
-        df_copy['absyawdiff'] = df_copy['yawdiff'].abs()
-
-
-        df_copy['pitchdiff'] = df_copy['pitch'].diff(1)
-        df_copy['abspitchdiff'] = df_copy['pitchdiff'].abs()
-
-
+        df_copy['absyawdiff'] = df_copy['yaw'].diff(1).abs()
+        df_copy['abspitchdiff'] = df_copy['pitch'].diff(1).abs()
         df_copy['xdiff'] = df_copy['x'].diff(1)
         df_copy['ydiff'] = df_copy['y'].diff(1)
 
@@ -172,11 +173,18 @@ def main():
             print("Nothing detected")
 
         bar_graph_filename_pitch = f"reports/images/{Path(filename).name}_{player}_0_50_pitch.png"
-        _save_figure(bar_graph_filename_pitch, player, inliers, outliers, [0.0, 0.5], [0, 50])
+        _save_figure(bar_graph_filename_pitch,
+            player, inliers, outliers, [0.0, 0.5], [0, 50])
+        _save_figure(f"reports/images/{Path(filename).name}_{player}_pitch.png",
+            player, inliers, outliers, [0.0, 0.5], None)
 
         bar_graph_filename_yaw = f"reports/images/{Path(filename).name}_{player}_0_50_yaw.png"
-        _save_figure(bar_graph_filename_yaw, player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 50])
+        _save_figure(bar_graph_filename_yaw,
+            player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 50])
+        _save_figure(f"reports/images/{Path(filename).name}_{player}_yaw.png",
+            player, yaw_inliers, yaw_outliers, [0.0, 0.5], None)
 
+    print(f"Execution time: {(time.perf_counter() - start_time):0.4f} seconds")
 
 if __name__ == "__main__":
     main()
