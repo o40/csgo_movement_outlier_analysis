@@ -8,10 +8,8 @@ import pandas as pd
 import sys
 
 # TODO:
-# * Replace "intervals" handling with ranges
-# * Replace _get_yaws and _get_pitches functions with something more generic
 # * Automatic outlier mask generation
-# * Run some profiling. Get rid of unneccessary copy
+# * Run some more profiling.
 # * Remove the need of creating the set of outliers.
 #     Is there some kind of "isin" with granularity setting?
 
@@ -30,17 +28,13 @@ def merge_intervals(intervals):
             sorted_intervals[interval_index] = [sorted_intervals[interval_index][0], i[1]]
     return sorted_intervals[:interval_index+1]
 
-def _get_yaws(df):
-    """ Get yawsdiff values where there are movement but no significant change
-    in x,y position (to filter out scoped sections, round change skips etc)
+def _get_filtered_movement(df, field_name):
+    """ Get movement values where there is movement but no significant change
+    in x,y position (to filter out zero-movement, scoped sections, round change
+    skips etc)
     """
-    return df['absyawdiff'][(df.xdiff < 1) & (df.ydiff < 1) & df.absyawdiff > 0]
+    return df[field_name][(df.xdiff < 1) & (df.ydiff < 1) & df[field_name] > 0]
 
-def _get_pitches(df):
-    """ Get pitchdiff values where there are movement but no significant change
-    in x,y position (to filter out scoped sections, round change skips etc)
-    """
-    return df['abspitchdiff'][(df.xdiff < 1) & (df.ydiff < 1) & df.abspitchdiff > 0]
 
 def _get_outlier_mask(player):
     """ Get the outlier mask for a given player. For now you need to manually add
@@ -151,15 +145,15 @@ def main():
 
         outlier_mask = _get_outlier_mask(player)
 
-        yaw_vals = _get_yaws(df_copy)
+        yaw_vals = _get_filtered_movement(df_copy, 'absyawdiff')
         yaw_inliers, yaw_outliers = _get_outliers(yaw_vals, outlier_mask)
 
-        vals = _get_pitches(df_copy)
-        inliers, outliers = _get_outliers(vals, outlier_mask)
+        pitch_vals = _get_filtered_movement(df_copy, 'abspitchdiff')
+        pitch_inliers, pitch_outliers = _get_outliers(pitch_vals, outlier_mask)
 
         filtered_outliers_pitch = None
-        if outliers:
-            filtered_outliers_pitch = df_copy[(df_copy['abspitchdiff'].isin(outliers))].tick.values
+        if pitch_outliers:
+            filtered_outliers_pitch = df_copy[(df_copy['abspitchdiff'].isin(pitch_outliers))].tick.values
 
         filtered_outliers_yaw = None
         if yaw_outliers:
@@ -182,9 +176,9 @@ def main():
         if args.generate_images:
             base_image_path = Path("reports/images")
             _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_pitch.png",
-                player, inliers, outliers, [0.0, 0.5], [0, 400])
+                player, pitch_inliers, pitch_outliers, [0.0, 0.5], [0, 400])
             # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_pitch.png",
-            #     player, inliers, outliers, [0.0, 0.5], None)
+            #     player, pitch_inliers, pitch_outliers, [0.0, 0.5], None)
             _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_yaw.png",
                 player, yaw_inliers, yaw_outliers, [0.0, 0.5], [0, 400])
             # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_yaw.png",
