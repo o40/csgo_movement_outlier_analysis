@@ -70,12 +70,13 @@ def _get_intervals(outliers):
             print(f"Interval: {s} - {e} ({e - s} ticks)")
     return intervals
 
+
 def _save_figure(filename, player, inliers, outliers, x_range, y_range):
     """ Save the inliers and outliers in diagram
     """
     stepsize = 0.00549313513513513513513
-    inlier_count = Counter(inliers)
-    outlier_count = Counter(outliers)
+    inlier_count = Counter([inlier for inlier in inliers if (inlier < x_range[1])])
+    outlier_count = Counter([outlier for outlier in outliers if (outlier < x_range[1])])
     fsize = (20, 10)
     fig, ax = plt.subplots(1, 1, figsize=fsize, sharey=False)
     ax.bar(inlier_count.keys(), inlier_count.values(), width=stepsize * 3 / 4, color='green')
