@@ -63,6 +63,8 @@ def _get_intervals(outliers, value_range, num_values_in_range):
             if stop - start < value_range:
                 intervals.append([start, stop])
 
+        if len(intervals) > 0:
+            print("")
         for interval in merge_intervals(intervals):
             s, e = interval
             print(f"Interval: {s} - {e} ({e - s} ticks)")
@@ -147,12 +149,12 @@ def main():
     df = pd.read_csv(filename)
 
     for player in df.name.unique():
-        print(f"\n=== {player}")
         df_copy = df[df.name == player].copy()
 
         if len(df_copy.index) < 1000:
-            print("Not enough data")
             continue
+
+        print(f"{player}: ", end='', flush=True)
 
         # Calculate x, y, yaw and pitch differences to use in inlier/outlier calculations
         df_copy = _calculate_diff_columns(df_copy)
@@ -173,14 +175,15 @@ def main():
                                             df_filtered_outliers_yaw.tick.values)
 
         if len(outlier_mask) == 0:
-            print(f"No outlier mask created for: {player}")
+            print("No outlier mask created")
         elif not intervals:
             print("Nothing detected")
 
         if args.generate_images:
-            base_image_path = Path("reports/images")
+            base_image_path = Path("reports") / Path("images")
+            filtered_player_name = ''.join(filter(str.isalnum, player))
             _save_figure(
-                f"{base_image_path}/{Path(filename).stem}_{player}_0_400_pitch.png",
+                f"{base_image_path}/{Path(filename).stem}_{filtered_player_name}_0_400_pitch.png",
                 player,
                 df_filtered_inliers_pitch.abspitchdiff.values,
                 df_filtered_outliers_pitch.abspitchdiff.values,
@@ -188,7 +191,7 @@ def main():
                 [0, 400])
 
             _save_figure(
-                f"{base_image_path}/{Path(filename).stem}_{player}_0_400_yaw.png",
+                f"{base_image_path}/{Path(filename).stem}_{filtered_player_name}_0_400_yaw.png",
                 player,
                 df_filtered_inliers_yaw.absyawdiff.values,
                 df_filtered_outliers_yaw.absyawdiff.values,
