@@ -118,12 +118,17 @@ def _is_in_rounded(data, values):
     return selection
 
 
+def _classify_movements(field, df, outlier_mask):
+    """ Classify movements as inliers or outliers based on the mask.
+    """
+    outlier_indexes = _is_in_rounded(df[field], outlier_mask)
+    inlier_indexes = [not item for item in outlier_indexes]
+    return df[inlier_indexes], df[outlier_indexes]
+
 def main():
     args = _parse_args()
     filename = args.csv
-    print("Loading data...")
     df = pd.read_csv(filename)
-    print("Loading data... DONE")
 
     for player in df.name.unique():
         print(f"\n=== {player}")
@@ -143,24 +148,15 @@ def main():
         yaw_vals = _get_filtered_movement(df_copy, 'absyawdiff')
         pitch_vals = _get_filtered_movement(df_copy, 'abspitchdiff')
 
-        outlier_indexes_pitch = _is_in_rounded(pitch_vals['abspitchdiff'], outlier_mask)
-        inlier_indexes_pitch = [not item for item in outlier_indexes_pitch]
-        filtered_outliers_ticks_pitch = pitch_vals[outlier_indexes_pitch].tick.values
-        filtered_outliers_pitch = pitch_vals[outlier_indexes_pitch].abspitchdiff.values
-        filtered_inliers_pitch = pitch_vals[inlier_indexes_pitch].abspitchdiff.values
-
-        outlier_indexes_yaw = _is_in_rounded(yaw_vals['absyawdiff'], outlier_mask)
-        inlier_indexes_yaw = [not item for item in outlier_indexes_yaw]
-        filtered_outliers_ticks_yaw = yaw_vals[outlier_indexes_yaw].tick.values
-        filtered_outliers_yaw = yaw_vals[outlier_indexes_yaw].absyawdiff.values
-        filtered_inliers_yaw = yaw_vals[inlier_indexes_yaw].absyawdiff.values
+        df_filtered_inliers_pitch, df_filtered_outliers_pitch = _classify_movements('abspitchdiff', pitch_vals, outlier_mask)
+        df_filtered_inliers_yaw, df_filtered_outliers_yaw = _classify_movements('absyawdiff', pitch_vals, outlier_mask)
 
         # Combine outlier ranges from pitch and yaw
         all_outlier_ticks = []
-        if filtered_outliers_ticks_pitch is not None:
-            all_outlier_ticks.extend(filtered_outliers_ticks_pitch)
-        if filtered_outliers_ticks_yaw is not None:
-            all_outlier_ticks.extend(filtered_outliers_ticks_yaw)
+        if df_filtered_outliers_pitch.tick.values is not None:
+            all_outlier_ticks.extend(df_filtered_outliers_pitch.tick.values)
+        if df_filtered_outliers_yaw.tick.values is not None:
+            all_outlier_ticks.extend(df_filtered_outliers_yaw.tick.values)
 
         intervals = _get_intervals(sorted(all_outlier_ticks))
 
@@ -171,14 +167,22 @@ def main():
 
         if args.generate_images:
             base_image_path = Path("reports/images")
-            _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_pitch.png",
-                player, filtered_inliers_pitch, filtered_outliers_pitch, [0.0, 0.5], [0, 400])
-            # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_pitch.png",
-            #     player, pitch_inliers, pitch_outliers, [0.0, 0.5], None)
-            _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_0_400_yaw.png",
-                player, filtered_inliers_yaw, filtered_outliers_yaw, [0.0, 0.5], [0, 400])
-            # _save_figure(f"{base_image_path}/{Path(filename).stem}_{player}_yaw.png",
-            #    player, yaw_inliers, yaw_outliers, [0.0, 0.5], None)
+            _save_figure(
+                f"{base_image_path}/{Path(filename).stem}_{player}_0_400_pitch.png",
+                player,
+                df_filtered_inliers_pitch.abspitchdiff.values,
+                df_filtered_outliers_pitch.abspitchdiff.values,
+                [0.0, 0.5],
+                [0, 400])
+
+            _save_figure(
+                f"{base_image_path}/{Path(filename).stem}_{player}_0_400_yaw.png",
+                player,
+                df_filtered_inliers_yaw.absyawdiff.values,
+                df_filtered_outliers_yaw.absyawdiff.values,
+                [0.0, 0.5],
+                [0, 400])
+
 
 if __name__ == "__main__":
     main()
