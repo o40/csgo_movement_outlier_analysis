@@ -18,4 +18,4 @@ go.exe build replay_parser.go
 
 # Run the tool to generate histograms and print ranges where outliers resides
 
-py -3 get_outlier_ranges.py csv/revolution-vs-optic-india-m2-cache.csv
+py -3 get_outlier_ranges.py --csv csv/revolution-vs-optic-india-m2-cache.csv --generate-images
