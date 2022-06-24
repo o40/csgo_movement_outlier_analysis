@@ -54,15 +54,13 @@ def _get_outlier_mask(player):
     return outlier_mask
 
 
-def _get_intervals(outliers):
+def _get_intervals(outliers, value_range, num_values_in_range):
     """ Get and print the intervals where outliers resides.
     """
     intervals = []
-    min_ticks_for_interesting_range = 40
-    if outliers:
-        # Check a range of three outliers
-        for start, stop in zip(outliers[:-3], outliers[3:]):
-            if stop - start < min_ticks_for_interesting_range:
+    if len(outliers) > num_values_in_range:
+        for start, stop in zip(outliers[:-num_values_in_range], outliers[num_values_in_range:]):
+            if stop - start < value_range:
                 intervals.append([start, stop])
 
         for interval in merge_intervals(intervals):
@@ -117,6 +115,24 @@ def _is_in_rounded(data, values):
         selection.append(selected)
     return selection
 
+def _get_combined_intervals(a, b):
+    """ Create "intervals" for values in a combined with b where enough values
+    exists in the given value range.
+    """
+    combined_values = []
+    if a is not None:
+        combined_values.extend(a)
+    if b is not None:
+        combined_values.extend(b)
+    return _get_intervals(sorted(combined_values), value_range=40, num_values_in_range=3)
+
+
+def _calculate_diff_columns(df):
+    df['absyawdiff'] = df['yaw'].diff(1).abs()
+    df['abspitchdiff'] = df['pitch'].diff(1).abs()
+    df['xdiff'] = df['x'].diff(1).abs()
+    df['ydiff'] = df['y'].diff(1).abs()
+    return df
 
 def _classify_movements(field, df, outlier_mask):
     """ Classify movements as inliers or outliers based on the mask.
@@ -138,27 +154,23 @@ def main():
             print("Not enough data")
             continue
 
-        df_copy['absyawdiff'] = df_copy['yaw'].diff(1).abs()
-        df_copy['abspitchdiff'] = df_copy['pitch'].diff(1).abs()
-        df_copy['xdiff'] = df_copy['x'].diff(1)
-        df_copy['ydiff'] = df_copy['y'].diff(1)
+        # Calculate x, y, yaw and pitch differences to use in inlier/outlier calculations
+        df_copy = _calculate_diff_columns(df_copy)
 
+        # Get the outlier mask for a given player
         outlier_mask = _get_outlier_mask(player)
 
+        # Filter out yaw and pitch rows where respective angular movement has occurred.
         yaw_vals = _get_filtered_movement(df_copy, 'absyawdiff')
         pitch_vals = _get_filtered_movement(df_copy, 'abspitchdiff')
 
+        # Classify movements as inliers and outliers
         df_filtered_inliers_pitch, df_filtered_outliers_pitch = _classify_movements('abspitchdiff', pitch_vals, outlier_mask)
         df_filtered_inliers_yaw, df_filtered_outliers_yaw = _classify_movements('absyawdiff', pitch_vals, outlier_mask)
 
-        # Combine outlier ranges from pitch and yaw
-        all_outlier_ticks = []
-        if df_filtered_outliers_pitch.tick.values is not None:
-            all_outlier_ticks.extend(df_filtered_outliers_pitch.tick.values)
-        if df_filtered_outliers_yaw.tick.values is not None:
-            all_outlier_ticks.extend(df_filtered_outliers_yaw.tick.values)
-
-        intervals = _get_intervals(sorted(all_outlier_ticks))
+        # Get the intervals where many outliers occurred
+        intervals = _get_combined_intervals(df_filtered_outliers_pitch.tick.values,
+                                            df_filtered_outliers_yaw.tick.values)
 
         if len(outlier_mask) == 0:
             print(f"No outlier mask created for: {player}")
